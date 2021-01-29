@@ -2,108 +2,60 @@
 /*****
  * Author: Ethan Gruber
  * Date: January 2021
- * Function: Process CSV extracted from the PAS JSON API from parse-pas.php into Nomisma RDF
+ * Function: Process CSV extracted from the PAS JSON API from parse-pas.php into Nomisma RDF for coins, hoards, and Wikidata-reconciled places
  */
 
-require_once('sparqllib.php');
+$coins = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vQdIf_BR6WhDJjFBPxBDHp2mPMW3usN_Wvy97mFe7XwdXYxH9w5SY_jL0I9P7GtkQ-yN-Km6yj4UV7h/pub?output=csv");
+$hoards = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vSrmIVpHlkD40HgVqEmnXh2wbV9_enZph9X8t7J4rmcrljfkm4YA9PxCsQ5sYk2v3P0cw_So0odp1DW/pub?output=csv");
+$places = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vQWVPKgrRn_2QZ4oYBE6J86dL00wwUopMGBe8Ot2Gb2TTJsvZDfw1klRN-idU5bYW2MSM1OKEC-CV3r/pub?output=csv");
 
-$data = generate_json("abc-merged.csv");
-$places = generate_json("places.csv");
-
-//store successful hits
-$coinTypes = array();
-
-//generate an array of records for outputting
-//$records = array();
-
-$count = 1;
-generate_rdf($data, $count, $places);
-
-/***** FUNCTIONS *****/
-//check validity of coin type URI
-function check_uri($uri){
-	GLOBAL $coinTypes;
-	
-	//if the URI is in the array
-	if (array_key_exists($uri, $coinTypes)){
-		if ($coinTypes[$uri] == true) {
-			echo "Found {$uri}\n";
-			$valid = true;
-		} else {
-			echo "Did not find {$uri}\n";
-			$valid = false;
-		}
-	} else {
-		$file_headers = @get_headers($uri);
-		if (strpos($file_headers[0], '200') !== FALSE){
-			echo "Matched new {$uri}\n";
-			$coinTypes[$uri] = true;
-			$valid = true;
-		} else {
-			echo "Did not find {$uri}\n";
-			$coinTypes[$uri] = false;
-			$valid = false;
-		}
-	}
-	
-	return $valid;
+$placeLabels = array();
+foreach ($places as $place){
+    $placeLabels[$place['uri']] = $place['label'];
 }
 
-function generate_rdf($data, $count, $places){
-    echo "Processing RDF.\n";
-	//start RDF/XML file
-	//use XML writer to generate RDF
-	$writer = new XMLWriter();
-	$writer->openURI("pas-abc.rdf");
-	//$writer->openURI('php://output');
-	$writer->startDocument('1.0','UTF-8');
-	$writer->setIndent(true);
-	//now we need to define our Indent string,which is basically how many blank spaces we want to have for the indent
-	$writer->setIndentString("    ");
+$count = 1;
+echo "Processing RDF.\n";
+//start RDF/XML file
+//use XML writer to generate RDF
+$writer = new XMLWriter();
+$writer->openURI("pas-abc.rdf");
+//$writer->openURI('php://output');
+$writer->startDocument('1.0','UTF-8');
+$writer->setIndent(true);
+//now we need to define our Indent string,which is basically how many blank spaces we want to have for the indent
+$writer->setIndentString("    ");
 
-	$writer->startElement('rdf:RDF');
-	$writer->writeAttribute('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema#');
-	$writer->writeAttribute('xmlns:nm', "http://nomisma.org/id/");
-	$writer->writeAttribute('xmlns:nmo', "http://nomisma.org/ontology#");
-	$writer->writeAttribute('xmlns:dcterms', "http://purl.org/dc/terms/");
-	$writer->writeAttribute('xmlns:foaf', 'http://xmlns.com/foaf/0.1/');
-	$writer->writeAttribute('xmlns:geo', "http://www.w3.org/2003/01/geo/wgs84_pos#");
-	$writer->writeAttribute('xmlns:rdf', "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-	$writer->writeAttribute('xmlns:rdfs', "http://www.w3.org/2000/01/rdf-schema#");
-	$writer->writeAttribute('xmlns:crm', "http://www.cidoc-crm.org/cidoc-crm/");
-	$writer->writeAttribute('xmlns:crmgeo', "http://www.ics.forth.gr/isl/CRMgeo/");
-	$writer->writeAttribute('xmlns:skos', "http://www.w3.org/2004/02/skos/core#");
-	$writer->writeAttribute('xmlns:void', "http://rdfs.org/ns/void#");
-	
-	foreach ($data as $record){
-	        
-	    $coinType = null;
-	    $valid = false;
+$writer->startElement('rdf:RDF');
+    $writer->writeAttribute('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema#');
+    $writer->writeAttribute('xmlns:nm', "http://nomisma.org/id/");
+    $writer->writeAttribute('xmlns:nmo', "http://nomisma.org/ontology#");
+    $writer->writeAttribute('xmlns:dcterms', "http://purl.org/dc/terms/");
+    $writer->writeAttribute('xmlns:foaf', 'http://xmlns.com/foaf/0.1/');
+    $writer->writeAttribute('xmlns:geo', "http://www.w3.org/2003/01/geo/wgs84_pos#");
+    $writer->writeAttribute('xmlns:rdf', "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    $writer->writeAttribute('xmlns:rdfs', "http://www.w3.org/2000/01/rdf-schema#");
+    $writer->writeAttribute('xmlns:crm', "http://www.cidoc-crm.org/cidoc-crm/");
+    $writer->writeAttribute('xmlns:crmgeo', "http://www.ics.forth.gr/isl/CRMgeo/");
+    $writer->writeAttribute('xmlns:osgeo', 'http://data.ordnancesurvey.co.uk/ontology/geometry/');
+    $writer->writeAttribute('xmlns:skos', "http://www.w3.org/2004/02/skos/core#");
+    $writer->writeAttribute('xmlns:void', "http://rdfs.org/ns/void#");
+
+    process_coins($writer, $coins, $count);
+    process_hoards($writer, $hoards, $count);
+    process_places($writer, $places);
+    
+//end RDF file
+$writer->endElement();
+$writer->flush();
+    
+/***** FUNCTIONS *****/
+function process_coins($writer, $coins, $count){
+    echo "Processing coins.\n";
+    
+    foreach ($coins as $record){
 	    
-	    if (strlen($record['newABC']) > 0){
-	        $abc = trim($record['newABC']);
-	        //read newABC first
-	        if (strlen($abc) == 4){
-	            echo "true\n";
-	            $coinType = "https://abc.arch.ox.ac.uk/id/abc." . $abc;
-	            $valid = check_uri($coinType);
-	        }   
-	    } elseif (strlen($record['abcType']) > 0){
-	        $abc = trim($record['abcType']);
-	        
-	        if (strpos($abc, '.') !== FALSE){
-	            $id = explode('.', $abc)[0];
-	            $coinType = "https://abc.arch.ox.ac.uk/id/abc." . number_pad($id, 4);
-	            $valid = check_uri($coinType);
-	        } elseif (is_numeric($abc)){
-	            $coinType = "https://abc.arch.ox.ac.uk/id/abc." . number_pad($abc, 4);
-	            $valid = check_uri($coinType);
-	        }
-	    } else {
-	        echo "{$count}: Pass\n";
-	    }
-	    
-		if (isset($coinType) && $valid == true){
+		if (strlen($record['Type URI'])){
 		    echo "{$count}: Processing {$record['URI']}\n";
 		    
 			$writer->startElement('nmo:NumismaticObject');
@@ -116,14 +68,14 @@ function generate_rdf($data, $count, $places){
     			
     			$writer->writeElement('dcterms:identifier', explode(':', $record['title'])[0]);			
     			$writer->startElement('nmo:hasTypeSeriesItem');
-    				$writer->writeAttribute('rdf:resource', $coinType);
+    			     $writer->writeAttribute('rdf:resource', $record['Type URI']);
     			$writer->endElement();
     			
-			/*if (isset($record['hoard'])){
+			if (strlen($record['Hoard URI']) > 0){
 				$writer->startElement('dcterms:isPartOf');
-					$writer->writeAttribute('rdf:resource', $record['hoard']);
+					$writer->writeAttribute('rdf:resource', $record['Hoard URI']);
 				$writer->endElement();
-			}*/
+			}
 
 			//conditional measurement data
 			if (strlen($record['weight']) > 0){
@@ -158,26 +110,8 @@ function generate_rdf($data, $count, $places){
 			    $writer->endElement();
 			}
 			
-			//findspot
-			if (strlen($record['osID']) > 0){
-			    $osID = "7" . number_pad($record['osID'], 15);
-			    $osURI = "http://data.ordnancesurvey.co.uk/id/{$osID}";
-			    
-			    //set the $geoURI as the OS URI as default, to be overwritten if there's an equivalent Wikidata URI in the $places array
-			    $geoURI = "http://data.ordnancesurvey.co.uk/id/{$osID}";
-			    
-			    foreach ($places as $place){
-			        if ($place['osID'] == $osID){
-			            $geoURI = $place['uri'];
-			            break;
-			        } else {
-			            $matches = explode('|', $place['closeMatch']);
-			            if (in_array($osURI, $matches)){
-			                $geoURI = $place['uri'];
-			                break;
-			            }
-			        }
-			    }
+			//insert a findspot only if there isn't a hoard
+			if (strlen($record['Findspot']) > 0 && strlen($record['Hoard URI']) == 0){
 			    
 			    $writer->startElement('nmo:hasFindspot');
 			         $writer->startElement('nmo:Find');
@@ -190,7 +124,7 @@ function generate_rdf($data, $count, $places){
     			                 $writer->endElement();
     			                 
     			                 $writer->startElement('crm:P89_falls_within');
-    			                     $writer->writeAttribute('rdf:resource', $geoURI);
+    			                     $writer->writeAttribute('rdf:resource', $record['Findspot']);
     			                 $writer->endElement();
     			                 
     			                 //insert SpatialThing for a public coordinate
@@ -218,8 +152,6 @@ function generate_rdf($data, $count, $places){
 			             $writer->endElement();			            
 			         $writer->endElement();
 			    $writer->endElement();
-			    
-			    unset($geoURI);
 			}
 
 			//void:inDataset
@@ -229,11 +161,96 @@ function generate_rdf($data, $count, $places){
 
 			//end nmo:NumismaticObject
 			$writer->endElement();
+		} else {
+		    echo "{$count}: Skipping {$record['URI']}\n";
 		}
-		
 		$count++;
 	}
-	
+}
+
+function process_hoards($writer, $hoards){
+    GLOBAL $placeLabels;
+    
+    echo "Processing hoards.\n";
+    
+    foreach ($hoards as $hoard){
+        $writer->startElement('nmo:Hoard');
+            $writer->writeAttribute('rdf:about', $hoard['URI']);
+            
+            $writer->startElement('skos:prefLabel');
+                $writer->writeAttribute('xml:lang', 'en');
+                $writer->text($hoard['prefLabel']);
+            $writer->endElement();
+            
+            if (strlen($hoard['closingEnd'])){
+                $writer->startElement('nmo:hasClosingDate');
+                    $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#gYear');
+                    $writer->text(number_pad($hoard['closingEnd'], 4));
+                $writer->endElement();
+            }
+            
+            if (strlen($hoard['findspot']) > 0){
+                $placeURI = $hoard['findspot'];
+                
+                $writer->startElement('nmo:hasFindspot');
+                    $writer->startElement('nmo:Find');
+                        if (strlen($hoard['discoveryStart']) > 0 && strlen($hoard['discoveryEnd']) > 0){
+                            if ($hoard['discoveryStart'] == $hoard['discoveryEnd']){
+                                $writer->startElement('nmo:hasDate');
+                                    $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#date');
+                                    $writer->text($hoard['discoveryStart']);
+                                $writer->endElement();
+                            } else {
+                                $writer->startElement('nmo:hasStartDate');
+                                    $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#date');
+                                    $writer->text($hoard['discoveryStart']);
+                                $writer->endElement();
+                                $writer->startElement('nmo:hasEndDate');
+                                    $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#date');
+                                    $writer->text($hoard['discoveryEnd']);
+                                $writer->endElement();                                
+                            }                            
+
+                        } elseif (strlen($hoard['discoveryStart']) > 0 && strlen($hoard['discoveryEnd']) == 0){
+                            $writer->startElement('nmo:hasDate');
+                                $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#date');
+                                $writer->text($hoard['discoveryStart']);
+                            $writer->endElement();
+                        } elseif (strlen($hoard['discoveryStart']) == 0 && strlen($hoard['discoveryEnd']) > 0){
+                            $writer->startElement('nmo:hasDate');
+                                $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#date');
+                                $writer->text($hoard['discoveryEnd']);
+                            $writer->endElement();
+                        }
+                    
+                        $writer->startElement('crm:P7_took_place_at');
+                            $writer->startElement('crm:E53_Place');
+                                $writer->startElement('rdfs:label');
+                                    $writer->writeAttribute('xml:lang', 'en');
+                                    $writer->text($placeLabels[$placeURI]);                                    
+                                $writer->endElement();
+                                $writer->startElement('crm:P89_falls_within');
+                                    $writer->writeAttribute('rdf:resource', $placeURI);
+                                $writer->endElement();
+                            $writer->endElement();
+                        $writer->endElement();
+                        
+                        
+                    $writer->endElement();
+                $writer->endElement();                
+            }
+            
+            //void:inDataset
+            $writer->startElement('void:inDataset');
+                $writer->writeAttribute('rdf:resource', 'https://finds.org.uk/');
+            $writer->endElement();
+        $writer->endElement();
+    }
+}
+
+function process_places($writer, $places){
+    echo "Processing places.\n";
+    
 	//iterate through Wikidata places to create SKOS concepts
 	foreach ($places as $place){
 	    $writer->startElement('crm:E53_Place');
@@ -257,7 +274,7 @@ function generate_rdf($data, $count, $places){
 	       }
 	       
 	      
-           if (strlen(trim($place['wkt'])) > 0) {
+           if (strlen(trim($place['wkt'])) > 0 || strlen(trim($place['geojson'])) > 0) {
 	           $writer->startElement('geo:location');
 	               $writer->writeAttribute('rdf:resource', $place['uri'] . '#this');
 	           $writer->endElement();
@@ -270,7 +287,7 @@ function generate_rdf($data, $count, $places){
 	    $writer->endElement();
 	    
 	    //geo:SpatialThing
-	    if (strlen(trim($place['wkt'])) > 0) {
+	    if (strlen(trim($place['wkt'])) > 0 || strlen(trim($place['geojson'])) > 0) {
             $writer->startElement('geo:SpatialThing');
                $writer->writeAttribute('rdf:about', $place['uri'] . '#this');
                $writer->startElement('rdf:type');
@@ -279,25 +296,30 @@ function generate_rdf($data, $count, $places){
                $writer->startElement('crmgeo:Q9_is_expressed_in_terms_of');
                    $writer->writeAttribute('rdf:resource', 'http://www.wikidata.org/entity/Q215848');
                $writer->endElement();
-               $writer->startElement('geo:lat');
-                   $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#decimal');
-                   $writer->text($place['lat']);
-               $writer->endElement();
-               $writer->startElement('geo:long');
-    	           $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#decimal');
-    	           $writer->text($place['lon']);
-               $writer->endElement();
-               $writer->startElement('crmgeo:asWKT');
-    	           $writer->writeAttribute('rdf:datatype', 'http://www.opengis.net/ont/geosparql#wktLiteral');
-    	           $writer->text($place['wkt']);
-               $writer->endElement();
+               
+               //display coordinates for parishes
+               if (strlen(trim($place['wkt'])) > 0 ){
+                   $writer->startElement('geo:lat');
+                       $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#decimal');
+                       $writer->text($place['lat']);
+                   $writer->endElement();
+                   $writer->startElement('geo:long');
+        	           $writer->writeAttribute('rdf:datatype', 'http://www.w3.org/2001/XMLSchema#decimal');
+        	           $writer->text($place['lon']);
+                   $writer->endElement();
+                   $writer->startElement('crmgeo:asWKT');
+        	           $writer->writeAttribute('rdf:datatype', 'http://www.opengis.net/ont/geosparql#wktLiteral');
+        	           $writer->text($place['wkt']);
+                   $writer->endElement();    
+               } elseif (strlen(trim($place['geojson'])) > 0){
+                   $writer->startElement('osgeo:asGeoJSON');
+                        $writer->text(trim($place['geojson']));
+                   $writer->endElement();
+               }
+
             $writer->endElement();
 	    }
-	}	
-
-	//end RDF file
-	$writer->endElement();
-	$writer->flush();
+	}
 }
 
 function number_pad($number,$n) {
