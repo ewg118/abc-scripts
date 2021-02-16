@@ -5,7 +5,8 @@
  * Function: Process CSV extracted from the PAS JSON API from parse-pas.php into Nomisma RDF for coins, hoards, and Wikidata-reconciled places
  */
 
-$coins = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vQdIf_BR6WhDJjFBPxBDHp2mPMW3usN_Wvy97mFe7XwdXYxH9w5SY_jL0I9P7GtkQ-yN-Km6yj4UV7h/pub?output=csv");
+$abc = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vQdIf_BR6WhDJjFBPxBDHp2mPMW3usN_Wvy97mFe7XwdXYxH9w5SY_jL0I9P7GtkQ-yN-Km6yj4UV7h/pub?output=csv");
+$ric = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vRTxdTNp9SireEY5HDbAY_dBIWrpIotNvYgwLf3xcinJVXIYfFr42gVyGOGsBme2zjzxvZQYALpm9g7/pub?output=csv");
 $hoards = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vSrmIVpHlkD40HgVqEmnXh2wbV9_enZph9X8t7J4rmcrljfkm4YA9PxCsQ5sYk2v3P0cw_So0odp1DW/pub?output=csv");
 $places = generate_json("https://docs.google.com/spreadsheets/d/e/2PACX-1vQWVPKgrRn_2QZ4oYBE6J86dL00wwUopMGBe8Ot2Gb2TTJsvZDfw1klRN-idU5bYW2MSM1OKEC-CV3r/pub?output=csv");
 
@@ -41,7 +42,8 @@ $writer->startElement('rdf:RDF');
     $writer->writeAttribute('xmlns:skos', "http://www.w3.org/2004/02/skos/core#");
     $writer->writeAttribute('xmlns:void', "http://rdfs.org/ns/void#");
 
-    process_coins($writer, $coins, $count);
+    process_coins($writer, $abc, $count);
+    process_coins($writer, $ric, $count);
     process_hoards($writer, $hoards, $count);
     process_places($writer, $places);
     
@@ -63,10 +65,10 @@ function process_coins($writer, $coins, $count){
 				
     			$writer->startElement('dcterms:title');
     				$writer->writeAttribute('xml:lang', 'en');
-    				$writer->text($record['title']);
+    				$writer->text($record['Title']);
     			$writer->endElement();
     			
-    			$writer->writeElement('dcterms:identifier', explode(':', $record['title'])[0]);			
+    			$writer->writeElement('dcterms:identifier', explode(':', $record['Title'])[0]);			
     			$writer->startElement('nmo:hasTypeSeriesItem');
     			     $writer->writeAttribute('rdf:resource', $record['Type URI']);
     			$writer->endElement();

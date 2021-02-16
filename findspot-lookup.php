@@ -7,7 +7,8 @@
 
 require_once('sparqllib.php');
 
-$coins = generate_json("pas-abc-coins.csv");
+$abc = generate_json("pas-abc-coins.csv");
+$ric = generate_json("pas-ric-coins.csv");
 $hoards = generate_json("pas-hoards.csv");
 //generate an array of records for outputting
 //$records = array();
@@ -15,7 +16,8 @@ $count = 1;
 $places = array();
 $placesQueried = array();
 
-process_sheet($coins, $count);
+process_sheet($abc, $count);
+process_sheet($ric, $count);
 process_sheet($hoards, $count);
 
 //write CSV
